@@ -1,0 +1,346 @@
+---
+title: "Biodiversity Analysis Guide"
+author: "Pava Francisca Ellison Gonzalez"
+date: "4/5/2020"
+output:
+  html_document:
+    highlight: breezedark
+    theme: cosmo
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data
+
+As always, the first step is to load all necessary packages you might need. Below I've started a running list of the majority of rerlevant packages that are necessary. 
+
+```{r packages, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(ggeffects)
+library(car)
+library(lme4)
+library(lmerTest)
+library(nlme)
+library(MASS)
+library(stringr)
+library(lubridate)
+library(tidyr)
+library(knitr)
+library(readr)
+library(RColorBrewer)
+library(MuMIn)
+library(stringr)
+library(magrittr)
+library(multcomp)
+library(vegan)
+library(BiodiversityR)  ##note that this will also add necessary pkgs
+```
+
+
+While you can use the command `BiodiversityRGUI()` to launch the Graphical User Interface, I have not used it and thus it is not included below, You can find instructions in the accompanying text or follow along with what I've done below.
+
+So before we can get to the fun part, we have to bring the data into the R environment. To calculate the biodiversity, the data should be set up into two files- a species matrix and an environmental variable matrix. In our species matrix, each row represents a "site" and each column represents a species. In both datasets, every row (or "site") is a survey. See below to 
+Remember, the data must be sorted so that the rows of both files line up and rows are aligned correctly. While we can order it and manipulate the data here in R, it will be easier to check this and be sure before loading our data into the R environment. 
+
+```{r los datos}
+##here we will skip the first column. I had used it to sort the data
+totals <- read_csv("totals.csv", col_types = cols(Date = col_skip()))
+
+##we can specify the format of each column
+##here I've already specified the format of the data
+enviro <- read_csv("current_enviro.csv",
+                   col_types = cols(Date = col_date(format = "%m/%d/%y")))
+
+check.datasets(totals, enviro)
+```
+
+If `check.datasets()` printed "OK",  we're good to go. With what I've set up, all code should run no problem. However if that didn't happen, then you can check to see if the data is saved as a data frame by running `is.data.frame(totals)`. If the data is not a data frame, convert it to one with the following code: `totals <- as.data.frame(totals)`. Remember, you can just run `as.data.frame()` but it simply call the commancd and will not save the data as a df. So make sure you include the `<-` with a name for the object.  
+Also, you can repeat these steps with the environment dataset by changing the input of "totals" to "enviro"
+Finally, remember that the species matrix and environmental matrix must have the same number of rows! If you are still running into a problem with the datasets, make sure the data matches!
+While you can use `View()` to check the entirety of the dataset, here we can get a quick sense of the way the data are set up. Below I've added a snippet of the species data. As you can see, each column header is the 4-letter bird alpha code.   
+`r kable(totals[1:5, 1:5], caption = "Sample of the first 5 rows and columns of the species matrix")` 
+
+## Calculating Biodiversity Variables
+
+Now that we know our data is ready, we can calculated our biodiversity variables. There are various ways to do it such as using `diversityresult()`, however that for example will only calculate one variable at a time. Remember you can press F1 for help or check the vignette to see the syntax as well as possible inputs. 
+Similarly, `diversitycomp()` will calculate only one biodiversity variable at a time, however you can set parameters in regards to your input such as specifying factors of the environmental data frame to calculate a given biodiversity variable for that subset of the data.
+Here, we will use `diversityvariables()` to calculate multiple diversity variables for each. 
+
+```{r div vars}
+cruz <- diversityvariables(totals, enviro, digits = 5)
+```
+
+Yep- it was that easy. Use `View(cruz)` to check out the output of results.
+
+## Clean up the Data
+
+While we probably should have cleaned our data before calculating our biodiversity variables, I did not tener las ganas to change my inital codes.
+Here we'll use some pipes from Abram/Owen's work, pretty much copied from the file that Abram shared with me. First, we'll split the tide into two variables: `tide_height` (low/mid/high/unknown) and `tide_dir` (rising/slack/falling).
+Then we'll also add in the month and month/year(ie. 9/14). 
+Finally, we'll remove the *summer* season due to inconsistent monitoring efforts. 
+
+```{r bit of cleaning}
+cruz_cleaned <- cruz %>%
+  mutate(tide_height=str_extract(Tide,"mid|low|high|Mid|Low|High"),
+         tide_height=ifelse(is.na(tide_height),"unk",tide_height),
+         tide_height=tolower(tide_height),
+         tide_dir=str_extract(Tide,"slack|rising|falling"),
+         tide_dir=ifelse(is.na(tide_dir),"slack",tide_dir))
+
+##now add other representations of the data
+d1 <- cruz_cleaned$Date   ##first save the date
+mon <- format(d1,"%m")    ##pull out just the month
+mon <- as.integer(mon)    ##change it to an interger to be read as a factor
+mon.yr <- format(d1,"%m/%y")  ##we can also pull out the month/year combo
+
+##combine by columns
+cruz_cleaned <- cbind(cruz_cleaned, mon)      ##combine month
+cruz_cleaned <- cbind(cruz_cleaned, mon.yr)   ##combine month/year
+cruz_cleaned <- filter(cruz_cleaned, szn != "4")  ##remove summer
+```
+In the environmental data, the seasons (here saved as "szn") were saved as the following:  
+1. Fall  
+2. Winter  
+3. Spring  
+4. Summer (which will soon be removed)
+
+Great- now we've got our data all set up. if you'd like, feel free to save this as a csv file. If you do so, then you'll be able to skip the steps above and jump straight into any analysis you'd like to do. Below is the code to save our data. 
+
+```{r optional save}
+write.csv(cruz_cleaned, file = "lacruz_biodiv.csv")
+```
+
+If you don't specify a place, it will automatically go into our working directory as a file named "lacruz_biodiversity.csv". 
+
+## Plotting Data
+
+Next, we'll make some plots to get a sense of the data we've got. First we'll start off by looking at the 
+
+### Box Plots
+We'll start off with some boxplots to look at our data. We'll plot the calculated Shannon Index for "temporada" or work season/cycle, and divde the data into groups by season and then by month. 
+
+```{r exploratory plots, echo=TRUE}
+ggboxplot(cruz_cleaned, x = "temporada", y = "Shannon", facet.by = "szn", 
+          panel.labs = list(szn=c("Otoño", "Invierno", "Primavera")),
+          color="temporada")
+
+ggboxplot(cruz_cleaned, x = "temporada", y = "Shannon", facet.by = "mon", 
+          color="temporada")
+```
+
+Now that we've looked at the plots, we can 
+
+## Analysis of Shannon's Index
+
+The first biodiversity metric we'll look at here will the Shannon-Weiner Diversity Index, or *H'*. This is a classic that is calculated where *p_i* is the number of species:
+
+$$H' = \sum_{j=1}^Sp_i(ln(p_i))$$
+
+This is one index that is commonly used as ut takes into accoount both the number of species as well as the proportioon. 
+
+### Check Distributions
+
+Before analysis, check out what we're dealing with in terms of distributions
+
+```{r data distribution, echo=TRUE}
+hist(cruz_cleaned$Shannon)       ##Shannon Diversity Index
+
+##make some cute lil qqplots to check for normal distribution of data
+ggqqplot("Shannon", data=cruz_cleaned)
+ggqqplot("Shannon", facet.by="szn", data=cruz_cleaned)
+ggqqplot("Shannon", facet.by = "temporada", data=cruz_cleaned)
+```
+
+Let's use the Shapiro-Wilk's test to see if our data is distributed normally. 
+```{r shapiro-wilks}
+shapiro.test(cruz_cleaned$Shannon)      ##first check Shannon
+```
+
+Since our p-value is below 0.05, we can say that our data is indeed not distributed normally. We can continue with non-parametric tests. Or we can try transforming the data. Here we'll try both a log and a sqrt transformation.  
+
+```{r check transformed data}
+##shannon
+shapiro.test(log(cruz_cleaned$Shannon))     ##log transformation
+shapiro.test(sqrt(cruz_cleaned$Shannon))    ##sqrt transformation
+```
+
+**Since neither of these are normally distributed, so we can't actually do linear modeling on the data.**  
+
+Seems like maybe a nested ANOVA would be the way to play with the data that I've generated and am working with. Let's start off with a bit more data wrangling and then make some moves. 
+
+```{r change factors}
+cruz_cleaned$season <- cruz_cleaned$szn
+cruz_cleaned$season <- ifelse(cruz_cleaned$season != 2, 1, 2) ##combine mig szns
+cruz_cleaned$season <- as.factor(cruz_cleaned$season)
+cruz_cleaned$temporada <- as.factor(cruz_cleaned$temporada)
+```
+
+Let's start off by creating a simple linear model with the function `lm()` to look for 
+```{r model 1}
+model1 <- lm(Shannon ~ temporada + season, data = cruz_cleaned)
+summary(model1)
+```
+
+Now that we have a model, we can do a bit of hypothesis testing. Here the `glht()` funtion is set up to use a Tukey test to set up pairwise comparisons of every factor to tell us whether or not there is a difference between our season/year cycles. 
+
+```{r mod 1 hypothesis testing}
+##show_tests(anova(model1, type="2")) ##was originally for a lmer
+posthoc <- glht(model1, linfct = mcp(temporada="Tukey"))
+mcs <- summary(posthoc, test=adjusted("single-step"))
+cld(mcs,level=0.05, decreasing=TRUE)
+```
+
+Here the function `cld()` output will tell us whether each season is different from one another or not in a simple letter display. For example, all "a" are similar to one another but different from "b" and "c". If you'd like to see the results of every individual pairwise comparison, just call `mcs`. 
+
+### General Least Squares 
+
+*It's like ANOVA but not...* **explain more here**
+
+```{r another}
+model.fixed <- gls(Shannon ~ temporada, data=cruz_cleaned, method="REML")
+anova(model1, model.fixed)
+ggpredict(model1, type = "fe")
+```
+
+We can try again but switch the nesting....but not sure if this is right because then its comparing seasons but maybe that is right because we want to compare the years wbut within the seasons but this groups the years together?
+
+### Mixed Effect Models
+
+This is important and relevant because we have changes in observers throughout the years and within a given cycle, contributing to a potential observer/detection bias that contributes to overall variation. 
+
+```{r anotha one}
+model2 <- lmer(Shannon ~ temporada + season + (1|obs), data = cruz_cleaned)
+summary(model2)
+posthoc2 <- glht(model2, linfct = mcp(season="Tukey"))
+mcs2 <- summary(posthoc2, test=adjusted("single-step"))
+cld(mcs2, level=0.05,decreasing=TRUE)
+anova(model2)
+```
+glmer? but with simpson index
+
+```{r más}
+model.fixed2 <- gls(Shannon ~ szn, data=cruz_cleaned, method="REML")
+anova(model2, model.fixed2)
+```
+
+
+### Non-parametric Tests
+
+Instead of an anova, we can run a Kruskall-Wallis test. 
+
+```{r k-w}
+kruskal.test(Shannon ~ temporada, data = cruz_cleaned)
+```
+
+Because why not. but really need to also check the mixed effects modeling. 
+
+## Analysis of Species Richness
+
+What we can do is look at this as count data and compare species richness over time. 
+
+### Initial Plots
+
+```{r box}
+ggboxplot(cruz_cleaned, x = "temporada", y = "richness", facet.by = "season", 
+          panel.labs = list(season=c("Otoño/Primavera", "Invierno")),
+          color="temporada")
+```
+
+### Check Distribution
+
+First lets check the distribution
+
+`r hist(cruz_cleaned$richness)`
+
+From the histogram it looks like the data is right-skewed. Let's perform a Shapiro-Wilks test to check normality. 
+
+```{r test}
+shapiro.test(cruz_cleaned$richness)
+```
+Data is not distributed normally, but since we have 
+
+### Modeling
+
+Since richness is an integer, we'll first fit the model to a Poisson distribution-- a primary method for modelling count data.
+```{r abun mods}
+sr.mod <- glm(richness ~ temporada + season, data = cruz_cleaned, 
+              family=poisson(link="log"))
+summary(sr.mod)
+```
+
+A common problem with 
+
+```{r glmnb mod}
+sr.mod2 <- glm.nb(richness ~ temporada + season, data = cruz_cleaned)
+summary(sr.mod2)
+```
+
+### Compare models
+
+We will first check the AICc scores of both models. This is a type of AIC (Aikaike's Information Criterion) that is commonly used in model selection. 
+
+```{r AICc}
+AICc(sr.mod)
+AICc(sr.mod2)
+```
+AICc scores are pretty similar, but since the first is slightly lower, it's a slightly better fit. That's good to kee[ in mind. ]
+
+### Mixed Models
+
+Next, let's check to see if adding in the random effect of observer affects the fit of the model. While 
+
+```{r random efx}
+sr.mod1 <- glmer(richness ~ temporada + season + (1|obs), data = cruz_cleaned, 
+                 family=poisson)
+summary(sr.mod1)
+```
+
+
+```{r mod comp}
+anova(sr.mod1, sr.mod)  ##anova to check model fits
+```
+
+In comparing the models, it appears that adding the random effect does not make a significant contribution to the model better fitting the data. So we will accept the first model and use that. 
+
+### Selected Model
+
+What can we learn or see?
+
+
+## Analysis of Evenness
+
+Evenness is an important factor as a basic index does not show all things. where *H'* is the Shannon diversity index and *S* the species richness.
+
+J-evenness is calculated as: 
+$$H'/ln(S)$$ 
+where H is the Shannon diversity index and S the species richness.
+
+E-evenness is calculated as: 
+$$exp(H')/S $$
+where H is the Shannon diversity index and S the species richness.
+
+
+```{r j even}
+ggboxplot(cruz_cleaned, x = "temporada", y = "Jevenness", facet.by = "season", 
+          panel.labs = list(season=c("Otoño/Primavera", "Invierno")),
+          color="temporada")
+
+ggplot(cruz_cleaned, aes(Date, Jevennes)) + geom_point() + geom_smooth()
+```
+
+We can repeat but with E-evenness. 
+```{r e even}
+
+```
+
+## Future Directions
+
+These indices and this work is really just a quick dive into potential analyses. For example, including things such as species accumulation curves (easily made with `specaccum()`) and community analysis are 
+Using ordination methods to examine changes in the bird community composition and structure over time woould be interesting. Additionally, using ordination to compare the communities between the 3 esteros (La Cruz, Cardonal and Tastiota) might also yield insights into birds of the region. 
+Similar to what I wrote in the guild analysis guild, there is potential work in diving deepier into the potential link between biodiversity and climate and/or tide. While some temperature and precipitation data are available [here](http://clicom-mex.cicese.mx/mapa.html), I found the data in the area to be incomplete and lacking the last few years. 
