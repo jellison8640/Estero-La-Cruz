@@ -1,6 +1,15 @@
 title: Jordan Ellison
 email: jellison8640@gmail.com
 
+navbar:
+  left:
+    - text: "Home"
+      href: index.html
+    - text: "Guild Analysis"
+      href: guildwork.html
+    - text: "About"
+      href: about.html  
+
 # social links
 twitter_username: j_ellison10 # DO NOT include the @ character, or else the build will fail!
 github_username:  jellison8640 # DO NOT include the @ character, or else the build will fail!
@@ -10,3 +19,5 @@ show_excerpts: true # set to false to remove excerpts on the homepage
 theme: minima
 toc: TRUE
 highlight: breezedark
+ 
+   
