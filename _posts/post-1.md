@@ -2,6 +2,7 @@
 layout: post
 title: "First Post!"
 date: 2020-05-12
+theme: cosmo
 highlight: breezedark
 ---
 
@@ -9,3 +10,4 @@ highlight: breezedark
 A ver que sale
 
 `inline code?`
+
