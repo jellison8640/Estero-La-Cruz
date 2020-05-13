@@ -51,6 +51,8 @@ library(sjPlot)
 All the necessary files should be saved in the working directory. 
 The files we'll Counts of birds in each guild for each survey at Estero La Cruz from 2013/14 to present cycle and these are "environment variables" taken at each survey. Similar to the biodiversity 
 
+***Don't forget to change the path OR make sure the files are in your working directory***
+
 ```{r import data}
 guild_totals <- read_csv("guild.totals.csv",
                          col_types = cols(Date = col_date(format = "%m/%d/%y")))
