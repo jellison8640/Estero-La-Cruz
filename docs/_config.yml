@@ -8,16 +8,6 @@ nav:
     - About: about.md
 
 # social links
-navbar:
-  left:
-    - text: "Home"
-      href: index.md
-    - text: "Guild Analysis"
-      href: guildwork.html
-    - text: "About"
-      href: about.html  
-
-
 twitter_username: j_ellison10 # DO NOT include the @ character, or else the build will fail!
 github_username:  jellison8640 # DO NOT include the @ character, or else the build will fail!
 
